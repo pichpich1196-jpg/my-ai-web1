@@ -13,7 +13,7 @@ st.set_page_config(
 )
 
 # ⚠️ សូមដាក់ GEMINI API KEY របស់អ្នកនៅចន្លោះសញ្ញាសម្រង់ "" ខាងក្រោមនេះ៖
-GEMINI_API_KEY = "AQ.Ab8RN6KzSUJONKyOlx5oy3ZjQVcYCOJ4_jtKaZFYXpBnUw8MJA"
+GEMINI_API_KEY = "AQ.Ab8RN6I39GWR3-YnsMR0R6CocmWoEEOVrwXX5ghjv6H7xYsFzQE"
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 

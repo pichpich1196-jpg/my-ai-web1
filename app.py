@@ -5,214 +5,7 @@ from google import genai
 from pptx import Presentation
 import streamlit as st
 
-st.set_page_config(
-    page_title="AI Smart Assistant - ប្រព័ន្ធជំនួយការឆ្លាតវៃ",
-    page_icon="⚡",
-    layout="wide",
-)
-
-# ⚠️ ដាក់ GEMINI API KEY របស់អ្នកនៅទីនេះ
-# ប្រើប្រព័ន្ធ Secrets របស់ Streamlit ដើម្បីសុវត្ថិភាព
-GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
-client = genai.Client(api_key=GEMINI_API_KEY)
-
-st.title("⚡ ប្រព័ន្ធជំនួយការឆ្លាតវៃ AI (All-in-One)")
-st.caption(
-    "ប្រព័ន្ធគ្រប់គ្រងការងារឆ្លាតវៃ៖ ធ្វើរបាយការណ៍ សម្រាយឯកសារ អានរូបភាព និងជជែកពិគ្រោះយោបល់"
-)
-
-# បង្កើត ៥ ផ្ទាំងការងារ
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "🎙️ សំឡេង ➜ របាយការណ៍",
-    "📄 សម្រាយឯកសារ",
-    "🖼️ អានរូបភាព/Scan (OCR)",
-    "💬 ជជែកសួរឆ្លើយ AI",
-    "🌐 បកប្រែឯកសារ",
-])
-
-# ==================== TAB 1: សំឡេង ====================
-with tab1:
-  st.subheader("បម្លែងសំឡេងទៅជារបាយការណ៍ការងារ")
-  col1, col2 = st.columns([1, 1])
-  with col1:
-    audio_file = st.file_uploader(
-        "បញ្ចូល File សំឡេង (MP3, WAV, OGG, M4A)៖",
-        type=["mp3", "wav", "ogg", "m4a"],
-    )
-    report_type = st.selectbox("ជ្រើសរើសទម្រង់របាយការណ៍៖", [
-        "📊 របាយការណ៍វឌ្ឍនភាពការងារទូទៅ",
-        "🏛️ របាយការណ៍ចុះមូលដ្ឋាន",
-        "🛠️ របាយការណ៍បច្ចេកទេស & ដោះស្រាយបញ្ហា",
-        "📝 កំណត់ហេតុអង្គប្រជុំ (Minutes of Meeting)",
-    ])
-    btn_audio = st.button("🚀 រៀបចំរបាយការណ៍", key="btn_aud")
-
-  with col2:
-    if audio_file and btn_audio:
-      with st.spinner("Gemini កំពុងស្ដាប់ និងរៀបចំជារបាយការណ៍..."):
-        ext = audio_file.name.split(".")[-1]
-        with tempfile.NamedTemporaryFile(
-            delete=False, suffix=f".{ext}"
-        ) as tmp:
-          tmp.write(audio_file.read())
-          tmp_path = tmp.name
-
-        try:
-          uploaded = client.files.upload(
-              file=tmp_path, mime_type=audio_file.type
-          )
-          prompt = f"""
-                    សូមស្ដាប់សំឡេងនេះ ហើយរៀបចំចេញជា {report_type} ជាភាសាខ្មែរឱ្យមានទម្រង់ច្បាស់លាស់ ស្អាតបាត និងផ្លូវការ។
-                    បែងចែកជាកថាខណ្ឌ៖
-                    ១. ព័ត៌មានទូទៅ (កាលបរិច្ឆេទ ទីតាំង សមាសភាពចូលរួម)
-                    ២. ខ្លឹមសារលម្អិត និងសកម្មភាពស្នូល
-                    ៣. លទ្ធផលសម្រេចបាន
-                    ៤. បញ្ហាប្រឈម និងសំណូមពរ
-                    ៥. ផែនការអនុវត្តបន្ត
-                    """
-          resp = client.models.generate_content(
-              model="gemini-2.5-flash", contents=[uploaded, prompt]
-          )
-          client.files.delete(name=uploaded.name)
-          st.success("✅ រៀបចំរួចរាល់!")
-          st.markdown(resp.text)
-        except Exception as e:
-          st.error(f"កំហុស៖ {e}")
-        finally:
-          if os.path.exists(tmp_path):
-            os.remove(tmp_path)
-
-# ==================== TAB 2: ឯកសារ ====================
-with tab2:
-  st.subheader("សម្រាយ និងសង្ខេបឯកសារចម្បងៗ")
-  doc_file = st.file_uploader(
-      "បញ្ចូល File ឯកសារ (PDF, Word, PPT)៖", type=["pdf", "docx", "pptx"]
-  )
-  doc_detail = st.radio(
-      "ទម្រង់សម្រាយ៖",
-      ["សង្ខេបខ្លីខ្លឹម ៣-៥ ចំណុច", "សម្រាយលម្អិតតាមជំពូកនីមួយៗ"],
-      horizontal=True,
-  )
-
-  if doc_file and st.button("🚀 សម្រាយឯកសារ", key="btn_doc"):
-    with st.spinner("Gemini កំពុងអានឯកសារ..."):
-      ext = doc_file.name.split(".")[-1].lower()
-      with tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}") as tmp:
-        tmp.write(doc_file.read())
-        tmp_path = tmp.name
-
-      try:
-        p_doc = f"សូមសម្រាយខ្លឹមសារនេះជាភាសាខ្មែរតាមទម្រង់ '{doc_detail}' ដោយប្រើពាក្យបច្ចេកទេសត្រឹមត្រូវ និងងាយយល់។"
-        if ext == "pdf":
-          up = client.files.upload(file=tmp_path, mime_type="application/pdf")
-          res = client.models.generate_content(
-              model="gemini-2.5-flash", contents=[up, p_doc]
-          )
-          client.files.delete(name=up.name)
-          st.markdown(res.text)
-        elif ext == "docx":
-          d = docx.Document(tmp_path)
-          txt = "\n".join([p.text for p in d.paragraphs if p.text.strip()])
-          res = client.models.generate_content(
-              model="gemini-2.5-flash", contents=f"{p_doc}\n\n{txt}"
-          )
-          st.markdown(res.text)
-        elif ext == "pptx":
-          prs = Presentation(tmp_path)
-          txt = "\n".join([
-              p.text
-              for s in prs.slides
-              for sh in s.shapes
-              if sh.has_text_frame
-              for p in sh.text_frame.paragraphs
-              if p.text.strip()
-          ])
-          res = client.models.generate_content(
-              model="gemini-2.5-flash", contents=f"{p_doc}\n\n{txt}"
-          )
-          st.markdown(res.text)
-      except Exception as e:
-        st.error(f"កំហុស៖ {e}")
-      finally:
-        if os.path.exists(tmp_path):
-          os.remove(tmp_path)
-
-# ==================== TAB 3: រូបភាព OCR ====================
-with tab3:
-  st.subheader("ស្រង់អត្ថបទ និងបកស្រាយរូបភាព / ក្រដាស Scan")
-  img_file = st.file_uploader(
-      "បញ្ចូលរូបភាព (JPG, PNG)៖", type=["jpg", "jpeg", "png"]
-  )
-  img_action = st.selectbox("តម្រូវការ៖", [
-      "ស្រង់អក្សរទាំងអស់ចេញជារូបរាងដើម (Extract Text/OCR)",
-      "បកប្រែអត្ថបទក្នុងរូបភាពជាភាសាខ្មែរ",
-      "វិភាគ និងសង្ខេបខ្លឹមសារក្នុងរូបភាព",
-  ])
-
-  if img_file and st.button("🚀 ដំណើរការរូបភាព", key="btn_img"):
-    with st.spinner("Gemini កំពុងស្កេនរូបភាព..."):
-      ext = img_file.name.split(".")[-1]
-      with tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}") as tmp:
-        tmp.write(img_file.read())
-        tmp_path = tmp.name
-
-      try:
-        up = client.files.upload(file=tmp_path, mime_type=img_file.type)
-        res = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[up, f"ធ្វើសកម្មភាព៖ {img_action}"],
-        )
-        client.files.delete(name=up.name)
-        st.markdown(res.text)
-      except Exception as e:
-        st.error(f"កំហុស៖ {e}")
-      finally:
-        if os.path.exists(tmp_path):
-          os.remove(tmp_path)
-
-# ==================== TAB 4: CHAT ASSISTANT ====================
-with tab4:
-  st.subheader("ជំនួយការសួរឆ្លើយ & ព្រាងលិខិត")
-  user_query = st.text_area(
-      "បញ្ចូលសំណួរ ឬប្រធានបទដែលចង់ឱ្យ AI រៀបចំ (ឧទាហរណ៍៖ សេចក្តីជូនដំណឹង, លិខិតស្នើសុំ, ឬបញ្ហាបច្ចេកទេស)៖"
-  )
-  if st.button("🚀 ឆ្លើយតប", key="btn_chat") and user_query:
-    with st.spinner("AI កំពុងរៀបចំចម្លើយ..."):
-      res = client.models.generate_content(
-          model="gemini-2.5-flash",
-          contents=(
-              "អ្នកគឺជាជំនួយការបច្ចេកទេស និងរដ្ឋបាលដ៏ជំនាញ។ ឆ្លើយជាភាសាខ្មែរផ្លូវការ"
-              f" និងជាក់ច្បាស់៖ {user_query}"
-          ),
-      )
-      st.markdown(res.text)
-
-# ==================== TAB 5: បកប្រែ ====================
-with tab5:
-  st.subheader("បកប្រែអត្ថបទរហ័ស")
-  target_lang = st.selectbox(
-      "បកប្រែទៅជាភាសា៖", ["ភាសាខ្មែរ", "ភាសាអង់គ្លេស", "ភាសាចិន"]
-  )
-  source_text = st.text_area(
-      "បញ្ចូលអត្ថបទដើមនៅទីនេះ៖", height=150, key="txt_trans"
-  )
-  if st.button("🚀 បកប្រែឥឡូវនេះ", key="btn_trans") and source_text:
-    with st.spinner("កំពុងបកប្រែ..."):
-      res = client.models.generate_content(
-          model="gemini-2.5-flash",
-          contents=(
-              f"សូមបកប្រែអត្ថបទនេះទៅជា {target_lang} ឱ្យមានន័យត្រឹមត្រូវតាមក្បួនខ្នាត៖\n\n{source_text}"
-          ),
-      )
-      st.markdown(res.text)
-import os
-import tempfile
-import docx
-from google import genai
-from pptx import Presentation
-import streamlit as st
-
-# កំណត់ Layout
+# កំណត់ Layout ទំព័រ
 st.set_page_config(
     page_title="AI Smart Workspace",
     page_icon="⚡",
@@ -230,7 +23,6 @@ st.markdown(
         font-family: 'Kantumruy Pro', sans-serif !important;
     }
 
-    /* Gradient Header Banner */
     .hero-container {
         background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
         padding: 30px;
@@ -241,28 +33,16 @@ st.markdown(
         text-align: center;
     }
     .hero-title {
-        font-size: 32px;
+        font-size: 30px;
         font-weight: 700;
         margin-bottom: 8px;
-        letter-spacing: 0.5px;
     }
     .hero-subtitle {
-        font-size: 16px;
+        font-size: 15px;
         opacity: 0.9;
         font-weight: 300;
     }
 
-    /* Card Box */
-    .stCard {
-        background-color: #ffffff;
-        padding: 24px;
-        border-radius: 14px;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
-        margin-bottom: 20px;
-    }
-
-    /* Button Styling */
     div.stButton > button:first-child {
         background: linear-gradient(135deg, #0062E0 0%, #1976D2 100%);
         color: white;
@@ -273,41 +53,23 @@ st.markdown(
         border: none;
         width: 100%;
         transition: all 0.3s ease;
-        box-shadow: 0 4px 14px rgba(25, 118, 210, 0.3);
     }
     div.stButton > button:first-child:hover {
         transform: translateY(-2px);
         box-shadow: 0 6px 20px rgba(25, 118, 210, 0.4);
-    }
-
-    /* Tabs Styling */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 12px;
-        border-bottom: 2px solid #e2e8f0;
-    }
-    .stTabs [data-baseweb="tab"] {
-        height: 48px;
-        white-space: pre-wrap;
-        background-color: transparent;
-        border-radius: 8px 8px 0 0;
-        gap: 8px;
-        font-weight: 600;
-        font-size: 15px;
-        padding: 0 16px;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #e8f0fe !important;
-        color: #1967d2 !important;
-        border-bottom: 3px solid #1967d2 !important;
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# ⚠️ សូមដាក់ GEMINI API KEY របស់អ្នកនៅទីនេះ
-GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE"
-client = genai.Client(api_key=GEMINI_API_KEY)
+# ទាញយក API Key ពី Streamlit Secrets ប្រកបដោយសុវត្ថិភាព
+api_key = st.secrets.get("GEMINI_API_KEY", "")
+if not api_key:
+  st.warning("⚠️ សូមកំណត់ GEMINI_API_KEY នៅក្នុង Streamlit Secrets ជាមុនសិន!")
+  st.stop()
+
+client = genai.Client(api_key=api_key)
 
 # ==================== HEADER ====================
 st.markdown(
@@ -414,5 +176,102 @@ with tab2:
           tmp_path = tmp.name
 
         try:
-          p_doc = f"សូមសម្រាយខ្លឹមសារនេះជាភាសាខ្មែរតាមទម្រង់ '{doc_mode}' ដោយប្រើភាសាបច្ចេកទេសត្រឹមត្រូវ និងងាយយល់។
-          
+          p_doc = (
+              "សូមសម្រាយខ្លឹមសារនេះជាភាសាខ្មែរតាមទម្រង់ '"
+              + str(doc_mode)
+              + "' ដោយប្រើភាសាបច្ចេកទេសត្រឹមត្រូវ និងងាយយល់។"
+          )
+          if ext == "pdf":
+            up = client.files.upload(file=tmp_path, mime_type="application/pdf")
+            res = client.models.generate_content(
+                model="gemini-2.5-flash", contents=[up, p_doc]
+            )
+            client.files.delete(name=up.name)
+            st.markdown(res.text)
+          elif ext == "docx":
+            d = docx.Document(tmp_path)
+            txt = "\n".join([p.text for p in d.paragraphs if p.text.strip()])
+            res = client.models.generate_content(
+                model="gemini-2.5-flash", contents=f"{p_doc}\n\n{txt}"
+            )
+            st.markdown(res.text)
+          elif ext == "pptx":
+            prs = Presentation(tmp_path)
+            txt = "\n".join([
+                p.text
+                for s in prs.slides
+                for sh in s.shapes
+                if sh.has_text_frame
+                for p in sh.text_frame.paragraphs
+                if p.text.strip()
+            ])
+            res = client.models.generate_content(
+                model="gemini-2.5-flash", contents=f"{p_doc}\n\n{txt}"
+            )
+            st.markdown(res.text)
+        except Exception as e:
+          st.error(f"កំហុស៖ {e}")
+        finally:
+          if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+    else:
+      st.info("👈 បញ្ចូលឯកសារដើម្បីឱ្យ AI ជួយសម្រាយជាចំណុចៗ")
+
+# ----------------- TAB 3: IMAGE OCR -----------------
+with tab3:
+  col_img1, col_img2 = st.columns([1, 1], gap="medium")
+  with col_img1:
+    st.markdown("### 🖼️ រូបភាព ឬក្រដាស Scan")
+    img_file = st.file_uploader(
+        "បញ្ចូលរូបភាព (JPG, PNG)៖", type=["jpg", "jpeg", "png"], key="img_up"
+    )
+    img_action = st.selectbox("តម្រូវការអនុវត្ត៖", [
+        "ស្រង់អក្សរចេញទាំងអស់ (Extract Text / OCR)",
+        "បកប្រែខ្លឹមសារក្នុងរូបភាពជាភាសាខ្មែរ",
+        "វិភាគទិន្នន័យ ឬតារាងក្នុងរូបភាព",
+    ])
+    btn_img = st.button("✨ ដំណើរការរូបភាព", key="btn_run_img")
+
+  with col_img2:
+    st.markdown("### 📝 លទ្ធផលស្រង់ចេញ")
+    if img_file and btn_img:
+      with st.spinner("AI កំពុងវិភាគរូបភាព..."):
+        ext = img_file.name.split(".")[-1]
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}") as tmp:
+          tmp.write(img_file.read())
+          tmp_path = tmp.name
+
+        try:
+          up = client.files.upload(file=tmp_path, mime_type=img_file.type)
+          res = client.models.generate_content(
+              model="gemini-2.5-flash",
+              contents=[up, f"ធ្វើសកម្មភាព៖ {img_action} ជាភាសាខ្មែរ"],
+          )
+          client.files.delete(name=up.name)
+          st.markdown(res.text)
+        except Exception as e:
+          st.error(f"កំហុស៖ {e}")
+        finally:
+          if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+    else:
+      st.info("👈 បញ្ចូលរូបភាព Scan ឬឯកសារថត")
+
+# ----------------- TAB 4: AI CONSULTANT -----------------
+with tab4:
+  st.markdown("### 💬 ជំនួយការព្រាងលិខិត & ពិគ្រោះយោបល់")
+  user_query = st.text_area(
+      "សរសេរប្រធានបទ ឬសំណួររបស់អ្នកនៅទីនេះ (ឧ. សេចក្តីជូនដំណឹង, លិខិតផ្លូវការ, ដំណោះស្រាយបច្ចេកទេស)៖",
+      height=140,
+  )
+  if st.button("✨ បង្កើតខ្លឹមសារ", key="btn_run_chat") and user_query:
+    with st.spinner("AI កំពុងរៀបចំខ្លឹមសារ..."):
+      res = client.models.generate_content(
+          model="gemini-2.5-flash",
+          contents=(
+              "អ្នកគឺជាជំនួយការបច្ចេកទេស និងរដ្ឋបាលជាន់ខ្ពស់។"
+              f" សូមឆ្លើយតបជាភាសាខ្មែរផ្លូវការ សុភាព និងមានលំដាប់លំដោយ៖ {user_query}"
+          ),
+      )
+      st.markdown("---")
+      st.markdown(res.text)

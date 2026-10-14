@@ -153,7 +153,7 @@ st.markdown(
         border-color: #6366f1;
     }
 
-    /* Empty Result Placeholder Box */
+    /* Result & Empty Placeholder */
     .empty-result-box {
         display: flex;
         flex-direction: column;
@@ -188,13 +188,28 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ផ្ទៀងផ្ទាត់ API Key ពី Streamlit Secrets (សុវត្ថិភាពខ្ពស់)
+# ផ្ទៀងផ្ទាត់ API Key ពី Streamlit Secrets
 api_key = st.secrets.get("GEMINI_API_KEY", "")
 if not api_key:
   st.warning("⚠️ សូមកំណត់ GEMINI_API_KEY នៅក្នុង Streamlit Secrets ជាមុនសិន!")
   st.stop()
 
 client = genai.Client(api_key=api_key)
+
+# បញ្ជីភាសាពេញនិយម
+LANG_OPTIONS = [
+    "ភាសាខ្មែរ (Khmer)",
+    "ភាសាអង់គ្លេស (English)",
+    "ភាសាចិន (Chinese)",
+    "ភាសាថៃ (Thai)",
+    "ភាសាវៀតណាម (Vietnamese)",
+    "ភាសាបារាំង (French)",
+    "ភាសាជប៉ុន (Japanese)",
+    "ភាសាកូរ៉េ (Korean)",
+    "ភាសាអេស្ប៉ាញ (Spanish)",
+    "ភាសាអាល្លឺម៉ង់ (German)",
+    "ភាសាផ្សេងទៀត (Other)",
+]
 
 # ==================== TOP NAVIGATION BAR ====================
 st.markdown(
@@ -218,13 +233,13 @@ st.markdown(
 
 # ==================== TABS BAR ====================
 tab1, tab2, tab3, tab4 = st.tabs([
-    "🎙️ សំឡេង ➜ របាយការណ៍",
+    "🎙️ សំឡេង ➜ របាយការណ៍/អក្សរ",
     "📄 សម្រាយ & សង្ខេបឯកសារ",
-    "🌐 បកប្រែភាសាការងារ",
+    "🌐 បកប្រែគ្រប់ភាសា (Universal)",
     "💬 ជំនួយការឆ្លាតវៃ (AI Chat)",
 ])
 
-# ----------------- TAB 1: VOICE REPORT -----------------
+# ----------------- TAB 1: AUDIO TRANSCRIPTION & REPORT -----------------
 with tab1:
   col_left, col_right = st.columns([1, 1], gap="large")
 
@@ -232,7 +247,7 @@ with tab1:
     st.markdown(
         """
         <div class="card-top">
-            <div class="card-header-title">🎙️ បម្លែងសំឡេងជារបាយការណ៍</div>
+            <div class="card-header-title">🎙️ បម្លែងសំឡេងទៅជាអក្សរ & របាយការណ៍</div>
             <div class="tag-badge">AI Audio Intelligence</div>
         </div>
         """,
@@ -248,47 +263,61 @@ with tab1:
     audio_file = None
     if "បញ្ចូល File" in source_type:
       audio_file = st.file_uploader(
-          "ចុចទីនេះ ឬទម្លាក់ File សំឡេងចូល (MP3, WAV, M4A, OGG, WebM)៖",
+          "បញ្ចូល File សំឡេង (MP3, WAV, M4A, OGG, WebM)៖",
           type=["mp3", "wav", "ogg", "m4a", "webm"],
       )
     else:
       audio_file = st.audio_input("ចុចប៊ូតុងក្រហមដើម្បីចាប់ផ្ដើមថតសំឡេង៖")
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    report_format = st.radio(
-        "ជ្រើសរើសទម្រង់របាយការណ៍ដែលត្រូវការ៖",
+    # គោលបំណងនៃការបម្លែងសំឡេង
+    audio_task = st.radio(
+        "តម្រូវការបម្លែងសំឡេង៖",
         [
-            "📊 វឌ្ឍនភាពការងារ (របាយការណ៍ការងារទូទៅ សកម្មភាព លទ្ធផល"
-            " និងបញ្ហាប្រឈម)",
-            "🏛️ ការងារចុះមូលដ្ឋាន (របាយការណ៍ចុះជួបប្រជាពលរដ្ឋ សំណូមពរ"
-            " និងដំណោះស្រាយ)",
-            "📝 កំណត់ហេតុប្រជុំ (ខ្លឹមសារអង្គប្រជុំ មតិពិភាក្សា និងសេចក្ដីសម្រេច)",
-            (
-                "⚡ សង្ខេបបន្ទាន់ (Brief) (ខ្លឹមសារស្នូលខ្លីៗ ចំណុចសំខាន់ៗ"
-                " និងសកម្មភាពបន្ទាន់)"
-            ),
+            "📝 បម្លែងសំឡេងជាអត្ថបទសុទ្ធ (Transcribe / Voice to Text)",
+            "📊 រៀបចំចេញជារបាយការណ៍ការងារផ្លូវការ",
         ],
+        horizontal=True,
     )
+
+    # ជម្រើសភាសាលទ្ធផល
+    target_audio_lang = st.selectbox(
+        "ភាសាលទ្ធផលដែលចង់បាន (បកប្រែចេញពីសំឡេង)៖",
+        LANG_OPTIONS,
+        index=0,  # default ជាភាសាខ្មែរ
+    )
+
+    report_format = ""
+    if "របាយការណ៍" in audio_task:
+      report_format = st.selectbox(
+          "ជ្រើសរើសទម្រង់របាយការណ៍៖",
+          [
+              "📊 របាយការណ៍វឌ្ឍនភាពការងារទូទៅ",
+              "🏛️ របាយការណ៍ចុះមូលដ្ឋាន",
+              "🛠️ របាយការណ៍បច្ចេកទេស & ដោះស្រាយបញ្ហា",
+              "📝 កំណត់ហេតុអង្គប្រជុំ (Minutes of Meeting)",
+              "⚡ សង្ខេបបន្ទាន់ (Brief ខ្លីខ្លឹម)",
+          ],
+      )
 
     custom_notes = st.text_input(
         "ចំណាំបន្ថែម ឬការណែនាំពិសេស (បើមាន)៖",
-        placeholder="ឧទាហរណ៍៖ សូមសង្កត់ធ្ងន់លើលទ្ធផលការងារ និងកាលបរិច្ឆេទ...",
+        placeholder="ឧទាហរណ៍៖ សំឡេងដើមជាភាសាអង់គ្លេស សូមបកប្រែជាខ្មែរ...",
     )
 
-    btn_audio = st.button("✏️ រៀបចំរបាយការណ៍ដោយ AI", key="btn_run_voice")
+    btn_audio = st.button("🚀 ដំណើរការបម្លែងសំឡេង", key="btn_run_voice")
 
   with col_right:
     st.markdown(
         """
         <div class="card-top">
-            <div class="card-header-title">📋 លទ្ធផលរបាយការណ៍</div>
+            <div class="card-header-title">📋 លទ្ធផលអត្ថបទ / របាយការណ៍</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
     if audio_file and btn_audio:
-      with st.spinner("AI កំពុងស្ដាប់ និងរៀបចំជារបាយការណ៍ផ្លូវការ..."):
+      with st.spinner("AI កំពុងស្ដាប់ និងបម្លែងសំឡេង..."):
         ext = audio_file.name.split(".")[-1] if hasattr(audio_file, "name") else "wav"
         with tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}") as tmp:
           tmp.write(audio_file.read())
@@ -301,23 +330,31 @@ with tab1:
               else f"audio/{ext}"
           )
           uploaded = client.files.upload(file=tmp_path, mime_type=mime)
-          prompt = f"""
-                    សូមស្ដាប់សំឡេងនេះ ហើយរៀបចំចេញជា '{report_format}' ជាភាសាខ្មែរផ្លូវការ ស្អាតបាត និងមានលំដាប់លំដោយ។
-                    កំណត់សម្គាល់បន្ថែមពីអ្នកប្រើប្រាស់៖ {custom_notes if custom_notes else 'គ្មាន'}
-                    
-                    ទម្រង់រៀបចំ៖
-                    - ចំណងជើងរបាយការណ៍
-                    - ព័ត៌មានទូទៅ
-                    - ខ្លឹមសារលម្អិត
-                    - លទ្ធផលសម្រេចបាន
-                    - បញ្ហា និងដំណោះស្រាយ/ទិសដៅបន្ត
-                    """
+
+          if "អត្ថបទសុទ្ធ" in audio_task:
+            prompt = f"""
+                        សូមស្ដាប់សំឡេងនេះ (ទោះជាភាសាអ្វីក៏ដោយ) ហើយបម្លែងទៅជាអត្ថបទសរសេរជា '{target_audio_lang}' ឱ្យបានសុក្រឹត និងត្រឹមត្រូវបំផុតតាមពាក្យសម្ដីដើម។
+                        ចំណាំបន្ថែមពីអ្នកប្រើប្រាស់៖ {custom_notes if custom_notes else 'គ្មាន'}
+                        """
+          else:
+            prompt = f"""
+                        សូមស្ដាប់សំឡេងនេះ (ទោះជាភាសាអ្វីក៏ដោយ) ហើយរៀបចំចេញជា '{report_format}' ជា '{target_audio_lang}' ឱ្យមានទម្រង់ច្បាស់លាស់ ស្អាតបាត និងផ្លូវការ។
+                        ចំណាំបន្ថែមពីអ្នកប្រើប្រាស់៖ {custom_notes if custom_notes else 'គ្មាន'}
+                        
+                        រចនាសម្ព័ន្ធរបាយការណ៍៖
+                        - ចំណងជើង
+                        - ព័ត៌មានទូទៅ
+                        - ខ្លឹមសារលម្អិត
+                        - លទ្ធផលសម្រេចបាន
+                        - បញ្ហាប្រឈម & ដំណោះស្រាយ/ទិសដៅបន្ត
+                        """
+
           resp = client.models.generate_content(
               model="gemini-2.5-flash", contents=[uploaded, prompt]
           )
           client.files.delete(name=uploaded.name)
 
-          st.success("✅ រៀបចំរបាយការណ៍ជោគជ័យ!")
+          st.success("✅ ដំណើរការបម្លែងជោគជ័យ!")
           st.markdown(resp.text)
         except Exception as e:
           st.error(f"កំហុស៖ {e}")
@@ -328,9 +365,9 @@ with tab1:
       st.markdown(
           """
             <div class="empty-result-box">
-                <div class="empty-icon">📄</div>
-                <div class="empty-title">រង់ចាំការបម្លែងសំឡេង</div>
-                <div class="empty-desc">សូមបញ្ចូល File សំឡេង ឬចុចថតសំឡេង រួចចុចប៊ូតុងខាងឆ្វេង ដើម្បីឱ្យ AI រៀបចំរបាយការណ៍ជូនលោកអ្នក។</div>
+                <div class="empty-icon">🎙️</div>
+                <div class="empty-title">រង់ចាំការបញ្ចូលសំឡេង</div>
+                <div class="empty-desc">អ្នកអាចបញ្ចូលសំឡេងជាភាសាខ្មែរ ឬភាសាដទៃ (អង់គ្លេស ចិន ថៃ...) ដើម្បីឱ្យ AI បម្លែងជាអក្សរខ្មែរ ឬបម្លែងពីខ្មែរទៅភាសាដទៃបានភ្លាមៗ។</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -349,6 +386,9 @@ with tab2:
         ["សង្ខេបខ្លឹមសារស្នូល ៣-៥ ចំណុច", "សម្រាយលម្អិតតាមជំពូក"],
         horizontal=True,
     )
+    doc_lang = st.selectbox(
+        "ភាសានៃការសម្រាយ៖", LANG_OPTIONS, index=0, key="sel_doc_lang"
+    )
     btn_doc = st.button("🚀 សម្រាយឯកសារ", key="btn_doc_action")
   with c_doc2:
     st.markdown("### 📑 ខ្លឹមសារសម្រាយ")
@@ -359,7 +399,7 @@ with tab2:
           tmp.write(doc_file.read())
           tmp_path = tmp.name
         try:
-          p = f"សូមសម្រាយខ្លឹមសារនេះជាភាសាខ្មែរតាមទម្រង់ '{doc_style}'៖"
+          p = f"សូមសម្រាយខ្លឹមសារនេះជា '{doc_lang}' តាមទម្រង់ '{doc_style}' ដោយប្រើពាក្យបច្ចេកទេសត្រឹមត្រូវ៖"
           if ext == "pdf":
             up = client.files.upload(file=tmp_path, mime_type="application/pdf")
             res = client.models.generate_content(
@@ -396,27 +436,56 @@ with tab2:
     else:
       st.info("👈 បញ្ចូលឯកសារដើម្បីឱ្យ AI ជួយសម្រាយ")
 
-# ----------------- TAB 3: TRANSLATION -----------------
+# ----------------- TAB 3: UNIVERSAL TRANSLATION (គ្រប់ភាសា) -----------------
 with tab3:
-  st.markdown("### 🌐 បកប្រែភាសាការងារផ្លូវការ")
-  lang = st.selectbox(
-      "បកប្រែទៅជា៖", ["ភាសាខ្មែរ", "ភាសាអង់គ្លេស", "ភាសាចិន"]
+  st.markdown("### 🌐 ប្រព័ន្ធបកប្រែពហុភាសា (Universal Translator)")
+  st.caption("បកប្រែឆ្លាស់គ្នាគ្រប់ភាសាលើពិភពលោក (ខ្មែរ ⇄ គ្រប់ភាសា)")
+
+  t_col1, t_col2 = st.columns([1, 1], gap="medium")
+  with t_col1:
+    source_lang = st.selectbox(
+        "ភាសាដើម (Source Language)៖",
+        ["ស្វែងរកដោយស្វ័យប្រវត្តិ (Auto Detect)"] + LANG_OPTIONS,
+        index=0,
+    )
+  with t_col2:
+    target_trans_lang = st.selectbox(
+        "បកប្រែទៅជាភាសា (Target Language)៖",
+        LANG_OPTIONS,
+        index=0,  # default ខ្មែរ
+        key="target_lang_select",
+    )
+
+  raw_text = st.text_area(
+      "បញ្ចូលអត្ថបទដែលត្រូវបកប្រែនៅទីនេះ៖",
+      height=180,
+      placeholder=(
+          "វាយ ឬ Paste អត្ថបទជាភាសាខ្មែរ អង់គ្លេស ចិន ថៃ"
+          " ឬភាសាផ្សេងៗទៀតនៅទីនេះ..."
+      ),
   )
-  raw_text = st.text_area("បញ្ចូលអត្ថបទដើមនៅទីនេះ៖", height=150)
+
   if st.button("🚀 បកប្រែឥឡូវនេះ", key="btn_trans_action") and raw_text:
     with st.spinner("AI កំពុងបកប្រែ..."):
+      prompt_trans = f"""
+            អ្នកគឺជាអ្នកបកប្រែជំនាញជាន់ខ្ពស់។
+            សូមបកប្រែអត្ថបទខាងក្រោមពី '{source_lang}' ទៅជា '{target_trans_lang}' ដោយរក្សាអត្ថន័យដើមឱ្យបានសុក្រឹត ក្បួនវេយ្យាករណ៍ និងពាក្យបច្ចេកទេសឱ្យត្រឹមត្រូវតាមកម្រិតផ្លូវការ៖
+            
+            {raw_text}
+            """
       res = client.models.generate_content(
-          model="gemini-2.5-flash",
-          contents=(
-              f"សូមបកប្រែអត្ថបទនេះទៅជា {lang} ឱ្យត្រឹមត្រូវតាមក្បួនខ្នាតរដ្ឋបាលផ្លូវការ៖\n\n{raw_text}"
-          ),
+          model="gemini-2.5-flash", contents=prompt_trans
       )
+      st.markdown("#### 📝 លទ្ធផលបកប្រែ៖")
+      st.success("✅ បកប្រែរួចរាល់!")
       st.markdown(res.text)
 
 # ----------------- TAB 4: CHAT ASSISTANT -----------------
 with tab4:
   st.markdown("### 💬 ជំនួយការឆ្លាតវៃ AI Chat")
-  q = st.text_area("សួរសំណួរ ឬឱ្យជួយព្រាងលិខិតផ្លូវការផ្សេងៗ៖", height=130)
+  q = st.text_area(
+      "សួរសំណួរ ពិគ្រោះយោបល់ ឬឱ្យជួយព្រាងលិខិតផ្លូវការផ្សេងៗ៖", height=130
+  )
   if st.button("🚀 ឆ្លើយតប", key="btn_chat_action") and q:
     with st.spinner("AI កំពុងរៀបចំខ្លឹមសារ..."):
       res = client.models.generate_content(
